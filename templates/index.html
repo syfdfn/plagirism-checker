@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plagiarism Checker</title>
+    <link rel="stylesheet" href="static/styles.css">
+    <link rel="icon" href="static/quill.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="header">
+        <h1>Plagiarism Checker</h1>
+    </div>
+    <div class="container">
+        <form method="POST" enctype="multipart/form-data" id="form" action="/check_similarity">
+            <!-- Input Sections -->
+            <div class="input-section">
+                <div class="text-input">
+                    <label for="text1">Input Text 1</label>
+                    <textarea name="text1" id="text1" rows="5" placeholder="Enter or upload Text 1"></textarea>
+                    <label for="file1">Upload File 1</label>
+                    <div class="file-upload-container">
+                        <label class="custom-file-upload">
+                            <input type="file" name="file1" id="file1" accept=".pdf">
+                            Choose File
+                        </label>
+                        <span id="file-path1" class="file-path">No file chosen</span>
+                    </div>
+                </div>
+                <div class="text-input">
+                    <label for="text2">Input Text 2</label>
+                    <textarea name="text2" id="text2" rows="5" placeholder="Enter or upload Text 2"></textarea>
+                    <label for="file2">Upload File 2</label>
+                    <div class="file-upload-container">
+                        <label class="custom-file-upload">
+                            <input type="file" name="file2" id="file2" accept=".pdf">
+                            Choose File
+                        </label>
+                        <span id="file-path2" class="file-path">No file chosen</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Algorithm Selection -->
+            <div class="dropdown-section">
+                <label for="algorithm">Select Algorithm:</label>
+                <select name="algorithm" id="algorithm">
+                    <option value="Jaccard">Jaccard</option>
+                    <option value="Rabin-Karp">Rabin-Karp</option>
+                </select>
+            </div>
+            <button type="submit" id="submitBtn">Check Similarity</button>
+        </form>
+
+        <!-- Results Section -->
+        <div id="results" style="display: none;">
+            <h2>Results</h2>
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>K-Gram</th>
+                        <th>Processing Time (s)</th>
+                        <th>Similarity (%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Results will be dynamically inserted here -->
+                </tbody>
+            </table>
+            <div class="summary">
+                <p><strong>Average Similarity:</strong> <span id="avgSimilarity"></span>%</p>
+                <!-- Add the similarity bar here -->
+                <div class="similarity-bar">
+                    <div class="similarity-bar-inner" id="similarityBar">0%</div>
+                </div>
+                <!-- Add category display here -->
+                <p id="category" class="category">Plagiarism Category</p>
+                <p><strong>Average Processing Time:</strong> <span id="avgProcessingTime"></span>s</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        const form = document.getElementById('form');
+        const submitBtn = document.getElementById('submitBtn');
+        const resultsSection = document.getElementById('results');
+        const resultsTableBody = document.querySelector('#resultsTable tbody');
+        const avgSimilarityElement = document.getElementById('avgSimilarity');
+        const avgProcessingTimeElement = document.getElementById('avgProcessingTime');
+        const similarityBar = document.getElementById('similarityBar');
+        const categoryElement = document.getElementById('category');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Disable the button while processing
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Checking...';
+    
+            const formData = new FormData(form);
+            try {
+                const response = await fetch('/check_similarity', {
+                    method: 'POST',
+                    body: formData,
+                });
+    
+                if (!response.ok) {
+                    throw new Error('Something went wrong');
+                }
+    
+                const data = await response.json();
+    
+                // Clear previous results
+                resultsTableBody.innerHTML = '';
+    
+                // Insert new results into the table
+                data.kgram_results.forEach(result => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${result[0]}</td>
+                        <td>${result[1]}</td>
+                        <td>${result[2]}</td>
+                    `;
+                    resultsTableBody.appendChild(row);
+                });
+    
+                // Display the average similarity and processing time
+                avgSimilarityElement.textContent = data.avg_similarity.toFixed(2);
+                avgProcessingTimeElement.textContent = data.avg_processing_time.toFixed(5);
+
+                // Update the similarity bar
+                const avgSimilarity = data.avg_similarity;
+                similarityBar.textContent = avgSimilarity.toFixed(2) + '%';
+                if (avgSimilarity < 30) {
+                    similarityBar.style.backgroundColor = 'green';
+                    similarityBar.style.width = avgSimilarity + '%';
+                    categoryElement.textContent = 'Plagiarism Category: Plagiarisme Ringan';
+                    categoryElement.className = 'category category-light';
+                } else if (avgSimilarity >= 30 && avgSimilarity <= 70) {
+                    similarityBar.style.backgroundColor = 'yellow';
+                    similarityBar.style.width = avgSimilarity + '%';
+                    categoryElement.textContent = 'Plagiarism Category: Plagiarisme Sedang';
+                    categoryElement.className = 'category category-medium';
+                } else {
+                    similarityBar.style.backgroundColor = 'red';
+                    similarityBar.style.width = avgSimilarity + '%';
+                    categoryElement.textContent = 'Plagiarism Category: Plagiarisme Berat';
+                    categoryElement.className = 'category category-heavy';
+                }
+                
+                // Show the results section
+                resultsSection.style.display = 'block';
+    
+                // Clear input fields and file path display
+                document.getElementById('text1').value = '';
+                document.getElementById('text2').value = '';
+                document.getElementById('file1').value = '';
+                document.getElementById('file2').value = '';
+                document.getElementById('file-path1').textContent = 'No file chosen';
+                document.getElementById('file-path2').textContent = 'No file chosen';
+            } catch (error) {
+                console.error(error);
+                alert('Error: Unable to check similarity. Please try again.');
+            } finally {
+                // Re-enable the button
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Check Similarity';
+            }
+        });
+    
+        // File input event listeners
+        document.getElementById('file1').addEventListener('change', async function () {
+            const file = this.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    const response = await fetch('/upload_file', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.text) {
+                        document.getElementById('text1').value = data.text;
+                    } else {
+                        alert('Error: Unable to read file.');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('Error: Unable to upload file.');
+                }
+            }
+            document.getElementById('file-path1').textContent = file ? file.name : 'No file chosen';
+        });
+    
+        document.getElementById('file2').addEventListener('change', async function () {
+            const file = this.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    const response = await fetch('/upload_file', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.text) {
+                        document.getElementById('text2').value = data.text;
+                    } else {
+                        alert('Error: Unable to read file.');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('Error: Unable to upload file.');
+                }
+            }
+            document.getElementById('file-path2').textContent = file ? file.name : 'No file chosen';
+        });
+    </script>    
+</body>
+</html>
